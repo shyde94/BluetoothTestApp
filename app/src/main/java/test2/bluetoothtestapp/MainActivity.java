@@ -20,12 +20,14 @@ import android.widget.TextView;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
 
     private String TAG = "MainActivityClass";
     private static final int REQUEST_ENABLE_BT = 0;
     private static final int REQUEST_DISCOVERABLE_BT = 0;
+    private final String NAME = "SD";
 
     private Button mTurnOn;
     private Button mTurnOff;
@@ -34,12 +36,13 @@ public class MainActivity extends AppCompatActivity {
     private EditText mSendMessage;
 
     private BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-    private BluetoothServerSocket btServerSocket = mBluetoothAdapter.listenUsingRfcommWithServiceRecord();
+    //private BluetoothServerSocket btServerSocket = mBluetoothAdapter.listenUsingRfcommWithServiceRecord();
     private BluetoothSocket btSocket;
 
     private OutputStream opStream;
     private InputStream ipStream;
     private BluetoothDevice btDevice;
+
 
 
     @Override
@@ -75,22 +78,28 @@ public class MainActivity extends AppCompatActivity {
                         new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
                 discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300);
                 startActivity(discoverableIntent);
-
-                try {
-                    Log.i(TAG, "block, waiting for connection request to accept");
-                    btSocket = btServerSocket.accept();
-                    if(btSocket!=null){
-                        Log.i(TAG, "Connection request accepted");
-                        btServerSocket.close();
-                        ipStream = btSocket.getInputStream();
+                Log.i(TAG, "block, waiting for connection request to accept");
+                AcceptThread acceptT = new AcceptThread();
+                acceptT.run();
+                if(btSocket!=null){
+                    Log.i(TAG, "Device Connected");
+                    btDevice = btSocket.getRemoteDevice();
+                    try {
                         opStream = btSocket.getOutputStream();
-                        btDevice = btSocket.getRemoteDevice();
                         mStatus.setText(btDevice.getName());
+                    } catch (IOException e) {
+                        e.printStackTrace();
                     }
 
-                } catch (IOException e) {
-                    e.printStackTrace();
                 }
+
+            }
+        });
+
+        mTurnOff.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+
             }
         });
     }
@@ -115,6 +124,68 @@ public class MainActivity extends AppCompatActivity {
 
         // Don't forget to unregister the ACTION_FOUND receiver.
         unregisterReceiver(mReceiver);
+    }
+
+    private class AcceptThread extends Thread {
+        private final BluetoothServerSocket mmServerSocket;
+
+        public AcceptThread() {
+            // Use a temporary object that is later assigned to mmServerSocket
+            // because mmServerSocket is final.
+            Log.i(TAG,"In acceptThread");
+            BluetoothServerSocket tmp = null;
+            UUID uuid = UUID.fromString("94f39d29-7d6d-437d-973b-fba39e49d4ee");
+            try {
+                // MY_UUID is the app's UUID string, also used by the client code.
+                tmp = mBluetoothAdapter.listenUsingRfcommWithServiceRecord(NAME, uuid);
+            } catch (IOException e) {
+                Log.i(TAG, "Socket's listen() method failed", e);
+            }
+            mmServerSocket = tmp;
+        }
+
+        public void run() {
+            BluetoothSocket socket = null;
+            // Keep listening until exception occurs or a socket is returned.
+            Log.i(TAG,"AcceptThread run");
+            while (true) {
+                try {
+                    socket = mmServerSocket.accept();
+                } catch (IOException e) {
+                    Log.i(TAG, "Socket's accept() method failed", e);
+                    break;
+                }
+
+                if (socket != null) {
+                    // A connection was accepted. Perform work associated with
+                    // the connection in a separate thread.
+                    Log.i(TAG, "Found connection. ");
+                    btSocket = socket;
+                    try {
+                        ipStream = btSocket.getInputStream();
+                        opStream = btSocket.getOutputStream();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+
+                    try {
+                        mmServerSocket.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Closes the connect socket and causes the thread to finish.
+        public void cancel() {
+            try {
+                mmServerSocket.close();
+            } catch (IOException e) {
+                Log.e(TAG, "Could not close the connect socket", e);
+            }
+        }
     }
 
 
