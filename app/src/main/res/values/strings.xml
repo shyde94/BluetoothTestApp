@@ -3,4 +3,5 @@
     <string name="temp">Temp</string>
     <string name="status">status</string>
     <string name="message">Message</string>
+    <string name="accept_connections">Accept Connections</string>
 </resources>
